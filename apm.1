@@ -1,0 +1,397 @@
+.TH APM 1 "2026" "apm 1.0.0" "AUR Package Manager"
+.
+.SH NAME
+apm \- a shitty suckless AUR package manager
+.
+.SH SYNOPSIS
+.B apm
+.I command
+.RI [ package ]
+.
+.SH DESCRIPTION
+.B apm
+is a minimal AUR helper written in POSIX shell.
+It searches, installs, upgrades, and removes packages from the Arch User Repository
+with the philosophical conviction that software should do one thing well,
+and the practical reality that "one thing" turned out to be about twelve things
+once you account for dependency checking, cache management, and a fetch screen
+that nobody strictly needed but everyone quietly wanted.
+.PP
+.B apm
+does not manage AUR dependencies automatically.
+This is intentional.
+The suckless philosophy holds that complexity is the enemy of reliability,
+and automatic dependency resolution is where complexity goes to breed.
+See
+.B ORDER OF OPERATIONS
+for guidance on handling this with your own two hands,
+like a responsible adult,
+which the author understands is an acquired taste.
+.
+.SH COMMANDS
+.TP
+.BR install ", " \-S " " \fIpackage\fR
+Install a package from the AUR.
+If an exact match is not found,
+.B apm
+will search for the term and present an interactive selection menu,
+because stumbling blindly into a
+.BR "package not found"
+error at 11pm is a form of suffering nobody deserves.
+If the package is already installed, you will be asked whether you'd like to
+reinstall it, rather than simply doing so without asking,
+which is a level of basic courtesy that puts
+.B apm
+ahead of several people I've worked with.
+.TP
+.BR search ", " \-Ss " " \fIpackage\fR
+Search the AUR for a package and present an interactive numbered list of results.
+Select a number to proceed to installation, or 0 to cancel,
+which the author acknowledges is essentially a very small, very ugly package browser.
+.TP
+.BR update ", " \-Su
+Check all installed AUR packages against the AUR's current versions
+and report any that are outdated.
+.B Note:
+packages with a
+.B \-git
+suffix are silently skipped, as their version numbers are based on commit counts
+and comparing them across PKGBUILD revisions is an exercise in
+metaphysical futility rather than practical system maintenance.
+.TP
+.BR upgrade ", " \-Syu
+Check for updates and offer to install them, either all at once or one by one,
+depending on how much you trust the AUR maintainers on any given afternoon.
+.TP
+.BR remove ", " \-R " " \fIpackage\fR
+Remove a package and its unneeded dependencies via
+.BR "pacman \-Rns" .
+Confirms before proceeding, because the difference between
+.B apm remove python
+and
+.B apm remove python3
+is the sort of thing that ruins an otherwise unremarkable Tuesday.
+.TP
+.BR info ", " \-Si " " \fIpackage\fR
+Display package metadata including name, version, description, URL,
+maintainer, number of votes, popularity, and licence.
+Useful for determining whether a package is actively maintained
+or whether its last commit was in 2019 by someone who has since,
+understandably, moved on.
+.TP
+.BR deps ", " \-Sd " " \fIpackage\fR
+Display a package's runtime and build dependencies.
+Does not install them.
+Does not attempt to resolve them recursively.
+Simply lists them, in the manner of a doctor who tells you what's wrong
+and then hands you a pamphlet rather than a prescription.
+See
+.B ORDER OF OPERATIONS
+for why this is correct behaviour rather than negligence.
+.TP
+.B list ", " \-Q
+List all installed AUR packages with their current versions,
+along with a count, because the number is always higher than you expect
+and occasionally higher than is entirely explicable.
+.TP
+.B clean
+Display the size of the build cache and offer to delete it.
+The build cache lives at
+.I $XDG_CACHE_HOME/apm
+or
+.I ~/.cache/apm
+if you haven't set XDG_CACHE_HOME,
+which you really ought to have done by now,
+but the author is hardly in a position to judge anyone's organisational habits.
+.TP
+.B log
+Display a timestamped history of all installs and removals performed by
+.BR apm .
+Stored at
+.I $XDG_STATE_HOME/apm/apm.log
+or
+.I ~/.local/state/apm/apm.log
+for the XDG-deficient among us.
+Useful for answering the question "when did I install this and why"
+which arises more frequently than one might hope.
+.TP
+.B fetch
+Display system information alongside the Pacman logo,
+in the grand tradition of terminal vanity screens that tell you things
+you already know, formatted in a way that makes them look more impressive
+than they are.
+A skill the author has been unsuccessfully attempting to apply to his CV
+for the better part of three months.
+.TP
+.BR version ", " \-V
+Print the version number, licence, and a brief account of the circumstances
+under which
+.B apm
+was written, which involved the wrong operating system,
+two failed mounts, and a Saturday that could have gone differently
+but chose not to.
+.
+.SH ORDER OF OPERATIONS
+This section exists because
+.B apm
+does not perform automatic AUR dependency resolution,
+and using it without understanding why will result in the sort of build failures
+that make you question your life choices at a fundamental level.
+.PP
+The suckless philosophy holds that a tool should be simple, auditable, and predictable.
+Automatic dependency resolution is none of these things.
+It is a graph traversal problem disguised as a convenience feature,
+and when it goes wrong \(em which it will, eventually, at the worst possible time \(em
+it goes wrong in ways that are deeply difficult to reason about
+and even more difficult to explain to your future self.
+.PP
+.B apm
+therefore takes the position that you are an adult
+who is capable of reading a dependency list and making decisions,
+which is admittedly an optimistic stance, but here we are.
+.PP
+The correct order of operations when installing an AUR package is as follows:
+.PP
+.B 1. Check dependencies first.
+.PP
+.RS
+Run
+.B apm deps
+.I package
+before installing anything.
+Read the output.
+Actually read it, rather than scrolling past it
+the way one scrolls past the terms and conditions of something
+you've already decided to install regardless.
+.RE
+.PP
+.B 2. Install official repository dependencies via pacman.
+.PP
+.RS
+Most dependencies will be in the official repositories.
+Install them first:
+.PP
+.RS
+.B pacman \-S
+.I dependency
+.RE
+.PP
+This is not
+.BR apm 's
+job.
+.BR pacman (8)
+exists, it works, and it does not need our help.
+.RE
+.PP
+.B 3. Identify any AUR dependencies.
+.PP
+.RS
+If a dependency is not found by
+.BR "pacman \-Si" ,
+it is almost certainly an AUR package itself.
+This is the part where things get recursive and slightly exhausting.
+Run
+.B apm deps
+on that dependency as well.
+Keep going until the dependency chain bottoms out in the official repositories,
+which it will, eventually,
+unless you've somehow managed to find a package whose entire dependency graph
+lives exclusively on the AUR,
+in which case you should probably reconsider whether you need this package
+or whether you've simply been on the AUR for too long and lost perspective.
+.RE
+.PP
+.B 4. Install AUR dependencies from the bottom up.
+.PP
+.RS
+Start with the deepest dependency \(em the one that nothing else depends on \(em
+and work your way up the chain.
+Each one goes through the normal
+.B apm install
+flow: fetch, review PKGBUILD, build, install.
+.PP
+Do not skip the PKGBUILD review.
+The AUR is a wonderful resource maintained by volunteers
+who are, for the most part, entirely trustworthy.
+"For the most part" is doing a lot of work in that sentence.
+Read the PKGBUILD.
+.RE
+.PP
+.B 5. Install the package itself.
+.PP
+.RS
+Once all dependencies are satisfied,
+.B apm install
+.I package
+will proceed without complaint.
+.RE
+.PP
+.B A worked example.
+.PP
+.RS
+Suppose you wish to install
+.BR some-wm-git ,
+a hypothetical window manager whose developer has strong opinions about keybindings
+and an apparent aversion to binary releases.
+.PP
+.RS
+.B apm deps some-wm-git
+.RE
+.PP
+Output reveals it depends on
+.B libwld
+and
+.BR libswc ,
+neither of which is in the official repositories.
+You run
+.B apm deps
+on each of those in turn and find that
+.I they
+depend only on packages available via
+.BR pacman .
+You install those via
+.BR pacman ,
+then install
+.B libwld
+and
+.B libswc
+via
+.BR "apm install" ,
+and finally install
+.B some-wm-git
+itself.
+Everything builds.
+Nothing explodes.
+You experience a brief, unfamiliar sensation that may be competence.
+.RE
+.
+.SH ENVIRONMENT
+.TP
+.B XDG_CACHE_HOME
+Build cache location. Defaults to
+.IR ~/.cache .
+.TP
+.B XDG_STATE_HOME
+Log file location. Defaults to
+.IR ~/.local/state .
+.
+.SH FILES
+.TP
+.I ~/.cache/apm/
+Build cache. Contains cloned AUR repositories.
+Safe to delete; will be repopulated on next install.
+Use
+.B apm clean
+rather than deleting manually,
+on the grounds that doing things properly takes roughly the same amount of time
+and produces considerably less guilt.
+.TP
+.I ~/.local/state/apm/apm.log
+Install and removal log. Contains timestamps and package names.
+Not safe to delete if you want to know why
+.B mangowm-git
+is on your system and when exactly that decision was made.
+.
+.SH DEPENDENCIES
+.TP
+.B git
+For cloning and updating AUR repositories.
+.TP
+.B curl
+For querying the AUR RPC API.
+.TP
+.B makepkg
+For building packages. Part of
+.BR base-devel ,
+which you should have installed already.
+If you haven't, the author wishes you the very best of luck
+and suggests installing it before attempting to use this tool.
+.TP
+.B base-devel
+The full build toolchain.
+.B apm
+will not install this for you.
+Consider it a prerequisite, like knowing how to use a terminal
+before attempting to write a terminal application,
+which is advice the author wishes he had received earlier in life
+and in a broader variety of contexts.
+.
+.SH LIMITATIONS
+.B apm
+does not resolve AUR dependencies automatically.
+See
+.B ORDER OF OPERATIONS
+for the author's justification of this decision,
+which he stands behind with the confidence of someone who has thought about it
+carefully and not merely the confidence of someone who found it difficult to implement.
+Both are true. They are not mutually exclusive.
+.PP
+.B apm
+does not support split packages, custom PKGBUILD options, or package signing verification beyond what
+.B makepkg
+provides by default.
+These are left as exercises for the reader,
+or more realistically, as reasons to use
+.BR paru (1)
+if any of them are dealbreakers.
+.PP
+Version comparison for
+.B \-git
+packages is unreliable by design.
+See the
+.B update
+command description for a longer explanation of why,
+which the author acknowledges reads as though he is coping rather than reasoning,
+but which he maintains is both simultaneously.
+.
+.SH SEE ALSO
+.BR pacman (8),
+.BR makepkg (8),
+.BR paru (1),
+.BR yay (1)
+.
+.SH BUGS
+Probably. The author welcomes bug reports with the cautious optimism
+of someone who has learned not to make promises about timelines.
+.PP
+Known quirks: the spinner does not clean up gracefully if the process is killed
+with SIGKILL rather than SIGTERM or SIGINT, which is the sort of edge case
+that only matters if you're the sort of person who sends SIGKILL as a first resort
+rather than a last one. You know who you are.
+.
+.SH HISTORY
+.B apm
+was written on a Saturday afternoon from inside a chroot
+on an Alpine Linux system, having set out to test the script
+on what was described as an Arch system but turned out,
+upon closer inspection, to not be that at all.
+The btrfs partition containing the actual Arch installation
+required two mount attempts, a detour via
+.IR /mnt/arch2 ,
+and a manual
+.B resolv.conf
+copy before it consented to participate.
+.PP
+The JSON parser printed everything backwards for the better part of an hour.
+.PP
+Despite all of this, or perhaps because of it,
+.B apm
+works correctly, fits in a single file,
+and has a fetch screen featuring the authentic Pacman logo
+sourced directly from
+.BR "pacman \-V" .
+.PP
+The author considers this a net positive Saturday,
+which is more than he can say for most of them.
+.
+.SH LICENCE
+GPL-3.0.
+Because if you're going to write something that installs software
+from a repository maintained entirely by volunteers
+on a distribution built on the labour of thousands of unpaid contributors,
+the least you can do is make it free.
+.
+.SH AUTHOR
+kant, assisted by an AI that was unemployed anyway
+and had absolutely nowhere else to be.
+
